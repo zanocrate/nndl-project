@@ -3,7 +3,11 @@ Here are the commands I ran to install dependencies for various python libraries
 sudo apt-get install libglu1
 sudo apt-get install libgl1
 sudo apt-get install libgomp1
+sudo apt-get install libxrender1
+sudo apt-get install xvfb
+sudo apt-get install libgl1-mesa-dev
 
 You can check library dependencies of a binary file using ldd <file>
 
 Also installed trimesh and open3d using pip
+
