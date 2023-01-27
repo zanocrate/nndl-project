@@ -14,7 +14,7 @@ training_set = ModelNetDataset(metadata_path,N,'train')
 validation_set = ModelNetDataset(metadata_path,N,'test')
 
 
-BATCH_SIZE=30
+BATCH_SIZE=32
 # Create data loaders for our datasets; shuffle for training, not for validation
 training_loader = DataLoader(training_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
 validation_loader = DataLoader(validation_set, batch_size=BATCH_SIZE, shuffle=False, num_workers=4)
