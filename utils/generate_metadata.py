@@ -9,7 +9,7 @@ metadata = pd.DataFrame({'filename': pd.Series(dtype='str'),
                    'label': pd.Series(dtype='int'),
                    'label_str': pd.Series(dtype='str')},)
 
-path = '/home/ubuntu/nndlproject/data/'+DATASET+'/ply/'
+path = '/home/ubuntu/nndl-project/data/'+DATASET+'/ply/'
 
 labels = {k:v for v,k in enumerate(os.listdir(path))}
 i=0
@@ -28,4 +28,4 @@ for r, d, f in os.walk(path):
 
         i+=1
         
-metadata.to_csv('/home/ubuntu/nndlproject/data/'+DATASET+'/metadata.csv')
+metadata.to_csv('/home/ubuntu/nndl-project/data/'+DATASET+'/metadata.csv')

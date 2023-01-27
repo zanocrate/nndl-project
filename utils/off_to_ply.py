@@ -4,7 +4,7 @@ import os
 import open3d as o3d
 import tqdm
 
-path = '/home/ubuntu/nndlproject/data/'+DATASET
+path = '/home/ubuntu/nndl-project/data/'+DATASET
 off_path = path+'/off/'
 ply_path = path+'/ply/'
 

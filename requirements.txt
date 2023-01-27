@@ -1,0 +1,8 @@
+numpy==1.21.5
+open3d==0.16.0
+pandas==1.4.4
+pyvista==0.37.0
+torch==1.13.1
+tqdm==4.64.1
+ipygany==0.5.0
+ipympl==0.9.2
