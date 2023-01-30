@@ -8,16 +8,23 @@ import numpy as np
 
 class ModelNetDataset(Dataset):
 
-    def __init__(self,metadata_path,N,split='all'):
+    def __init__(self,metadata_path,N,split='all',orientation_classes_path=None):
 
-        self.metadata = pd.read_csv(metadata_path)
+        self.metadata = pd.read_csv(metadata_path,index_col=0)
         assert ('path' in self.metadata.columns) and ('label' in self.metadata.columns) # metadata should contain these fields
         
         if split not in ['train','test','all']: raise ValueError('Split must be "train","test" or "all"')
         self.split = split
 
         self.N = N
-        self.rotation = 'random' # for now only like this
+
+        if orientation_classes_path is not None:
+            # orientation_classes csv file is a table that has label,label_str,label_orientation_class, rot_x, rot_y,rot_z features
+            self.rotation = 'classes'
+            self.orientation_classes = pd.read_csv(orientation_classes_path,index_col=0)
+        else:
+            self.rotation = 'random'
+
     
     def __len__(self):
 
@@ -29,17 +36,22 @@ class ModelNetDataset(Dataset):
     def __getitem__(self, idx):
 
         if self.split == 'all':
-            mesh_path,label = self.metadata.iloc[idx][['path','label']]
+            mesh_path,label = self.metadata.loc[idx][['path','label']]
         else:
             mesh_path,label = self.metadata[self.metadata['split']==self.split].iloc[idx][['path','label']]
         
 
         if self.rotation == 'random':
             rot_xyz = 360*np.random.rand(3)
-
-        voxel_grid = load_voxel_grid(mesh_path,self.N,*rot_xyz)
-
-        return voxel_grid, rot_xyz, label
+            voxel_grid = load_voxel_grid(mesh_path,self.N,*rot_xyz)
+            return voxel_grid, rot_xyz, label
+        elif self.rotation == 'classes':
+            sample = self.orientation_classes.loc[label].sample(1) # grab a random orientation class for the label
+            rot_xyz = sample[['rot_x','rot_y','rot_z']].values[0]     # get the corresponding rotation
+            orientation_class = int(sample['orientation_class'])   # get the orientation class label
+            voxel_grid = load_voxel_grid(mesh_path,self.N,*rot_xyz)
+            return voxel_grid, orientation_class, label
+            
 
 
 
