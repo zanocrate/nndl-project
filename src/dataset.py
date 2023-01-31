@@ -8,49 +8,39 @@ import numpy as np
 
 class ModelNetDataset(Dataset):
 
-    def __init__(self,metadata_path,N,split='all',orientation_classes_path=None):
+    def __init__(self,metadata_path,N,split='all', file_format='npy'):
 
         self.metadata = pd.read_csv(metadata_path,index_col=0)
-        assert ('path' in self.metadata.columns) and ('label' in self.metadata.columns) # metadata should contain these fields
-        
+        assert ('path' in self.metadata.columns) and ('label_int' in self.metadata.columns) and ('file_format' in self.metadata.columns) # metadata should contain these fields
+        self.metadata=self.metadata.set_index(['file_format','split'])
+        self.metadata['orientation_class'] = self.metadata['orientation_class'].fillna(-1).astype(int)
+
+        if file_format not in self.metadata.index.levels[0]: raise ValueError('File format not in metadata.')
+        self.file_format = file_format
+
         if split not in ['train','test','all']: raise ValueError('Split must be "train","test" or "all"')
-        self.split = split
+        if split == 'all' : self.split = ['train','test']
+        else: self.split = split
 
         self.N = N
-
-        if orientation_classes_path is not None:
-            # orientation_classes csv file is a table that has label,label_str,label_orientation_class, rot_x, rot_y,rot_z features
-            self.rotation = 'classes'
-            self.orientation_classes = pd.read_csv(orientation_classes_path,index_col=0)
-        else:
-            self.rotation = 'random'
 
     
     def __len__(self):
 
-        if self.split == 'all':
-            return len(self.metadata)
-        else:
-            return len(self.metadata[self.metadata['split']==self.split])
+        return len(self.metadata.loc[self.file_format].loc[self.split])
 
     def __getitem__(self, idx):
 
-        if self.split == 'all':
-            mesh_path,label = self.metadata.loc[idx][['path','label']]
-        else:
-            mesh_path,label = self.metadata[self.metadata['split']==self.split].iloc[idx][['path','label']]
-        
+        # sample has orientation_class, path, orientation_class_id, label, label_int
+        sample = self.metadata.loc[self.file_format].loc[self.split].iloc[idx]
 
-        if self.rotation == 'random':
+        if sample['orientation_class'] == -1:
             rot_xyz = 360*np.random.rand(3)
-            voxel_grid = load_voxel_grid(mesh_path,self.N,*rot_xyz)
-            return voxel_grid, rot_xyz, label
-        elif self.rotation == 'classes':
-            sample = self.orientation_classes.loc[label].sample(1) # grab a random orientation class for the label
-            rot_xyz = sample[['rot_x','rot_y','rot_z']].values[0]     # get the corresponding rotation
-            orientation_class = int(sample['orientation_class'])   # get the orientation class label
-            voxel_grid = load_voxel_grid(mesh_path,self.N,*rot_xyz)
-            return voxel_grid, orientation_class, label
+            voxel_grid = load_voxel_grid(sample['path'],self.N,*rot_xyz)
+            return voxel_grid, rot_xyz, sample['label_int']
+        else:
+            voxel_grid = np.load(sample['path'])
+            return voxel_grid, sample['orientation_class_id'], sample['label_int']
             
 
 
