@@ -3,17 +3,33 @@ from torch.utils.data import Dataset
 import torch
 import pyvista as pv
 import numpy as np
+import torch.nn.functional as F
 
 # BROKEN WITH SLICE INDEXING IDK WHY
+
+# TO DO:
+
+#     - simplify structure based on new metadata file
+#     - implement one hot encoding as output
+
 
 class ModelNetDataset(Dataset):
 
     def __init__(self,metadata_path,N,split='all', file_format='npy'):
 
+        # load csv file
         self.metadata = pd.read_csv(metadata_path,index_col=0)
-        assert ('path' in self.metadata.columns) and ('label_int' in self.metadata.columns) and ('file_format' in self.metadata.columns) # metadata should contain these fields
+
+        # metadata should have the following columns
+        expected_fields = ['label', 'orientation_class', 'label_id', 'path', 'label_int','orientation_class_id']
+        for expected_field in expected_fields: assert(expected_field in self.metadata.columns)
+
+        # subset entries
         self.metadata=self.metadata.set_index(['file_format','split'])
-        self.metadata['orientation_class'] = self.metadata['orientation_class'].fillna(-1).astype(int)
+
+        # get the number of labels
+        self.n_orientation_classes = self.metadata['orientation_class_id'].unique().size
+        self.n_classes = self.metadata['label_int'].unique().size
 
         if file_format not in self.metadata.index.levels[0]: raise ValueError('File format not in metadata.')
         self.file_format = file_format
@@ -40,6 +56,9 @@ class ModelNetDataset(Dataset):
             return voxel_grid, rot_xyz, sample['label_int']
         else:
             voxel_grid = np.load(sample['path'])
+            F.one_hot(sample['orientation_class_id'],num_classes=N_ORIENTATION_CLASSES).float()
+             # ONE HOT THESE
+            sample['label_int']
             return voxel_grid, sample['orientation_class_id'], sample['label_int']
             
 

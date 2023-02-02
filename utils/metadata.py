@@ -16,6 +16,8 @@ orientation_class_column = []
 path_column = []
 split_column = []
 
+# begin scanning of dataset root folder
+
 for file_format in file_formats:
     # go into file format dir
     os.chdir(os.path.join(ROOT_DIR,file_format))

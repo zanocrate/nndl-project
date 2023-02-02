@@ -1,3 +1,4 @@
 data/
 nohup.out
 runs/
+trained_models/

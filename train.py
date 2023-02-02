@@ -181,7 +181,7 @@ for epoch in range(EPOCHS):
     # Log the running loss averaged per batch
     # for both training and validation
     writer.add_scalars('Training/Validation Loss, Learning Rate',
-                    { 'Training' : avg_loss, 'Validation' : avg_vloss , 'Learning Rate' : scheduler.get_lr()},
+                    { 'Training' : avg_loss, 'Validation' : avg_vloss , 'Learning Rate' : scheduler.get_last_lr()[0]},
                     epoch_number + 1)
     writer.flush()
 
