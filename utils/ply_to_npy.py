@@ -8,8 +8,6 @@ orientation_classes_path = '/home/ubuntu/nndl-project/utils/orientation_classes.
 # root folder for the ply files, in the structure of modelnet dataset
 ply_root = '/home/ubuntu/nndl-project/data/modelnet10/ply/'
 
-import os
-os.chdir('/home/ubuntu/nndl-project/')
 
 import tqdm
 import pandas as pd

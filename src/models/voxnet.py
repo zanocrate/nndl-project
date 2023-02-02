@@ -99,4 +99,4 @@ class VoxNet(nn.Module):
         out_class = self.out_class(x)
         out_pose = self.out_pose(x)
 
-        return out_class,out_pose
+        return out_pose,out_class

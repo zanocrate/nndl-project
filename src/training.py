@@ -1,3 +1,7 @@
+# this file contains methods that will be used with ray tune hyperparameter searching
+# for the training of the class/orientation_class based model
+
+
 from torch.utils.data import DataLoader, Dataset
 from .models.voxnet import VoxNet
 from functools import partial
@@ -6,55 +10,76 @@ import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-from torch.utils.data import random_split
 
-from ray import tune
-from ray.tune import CLIReporter
-from ray.tune.schedulers import ASHAScheduler
 
 
 def train_one_epoch(
+        model,
         training_loader,
         optimizer, 
         loss_c_fn, # loss for class
         loss_o_fn, # loss for orientation
+        gamma,     # relative weights of the losses
+        log_every : int = 10, # batches
         device : str = 'cpu'
                     ):
 
+    """
+    Args:
+    ------
+        model : nn.Module to train. Expected to return a tuple (orientation,class) already one hot encoded.
+        training_loader : torch.utils.data.DataLoader pointing to the training subset
+        optimizer : torch.optim optimizer
+        loss_c_fn : torch.nn loss for the class output
+        loss_o_fn :               for the orientation output
+        gamma : float, relative weights for the losses
+        log_every : int, number of batches between logging to tune
+        device : str, device to cast the data to. must be the same as model
+
+    Returns:
+    -------
+        last_loss : the training loss on the last log_every subset of batches
+    """
+
+    running_loss = 0
+    last_loss = 0.
 
     for i, data in enumerate(training_loader):
         
-        # Every data instance is (voxel grid, o_y, y) ordinal encoded
+        # Every data instance is (voxel grid, o_y, y) already hot encoded
         voxels, o_y, y = data
-        voxels = voxels.to(device)
-        # we need one hot encoding for cross entropy loss
-        o_y = F.one_hot(o_y,num_classes=N_ORIENTATION_CLASSES).float().to(device)
-        y = F.one_hot(y,num_classes=N_CLASSES).float().to(device)
 
+        # cast them all to float and transfer to device
+        voxels = voxels.float().to(device)
+        o_y = o_y.float().to(device)
+        y = y.float().to(device)
+        
         # Zero your gradients for every batch!
         optimizer.zero_grad()
 
         # Make predictions for this batch
-        y_pred, o_y_pred = model(voxels.float())
+        o_y_pred, y_pred = model(voxels)
 
         # Compute the loss and its gradients
         loss_c = loss_c_fn(y_pred, y)
         loss_o = loss_o_fn(o_y_pred,o_y)
 
-        total_loss = (1-config['gamma'])*loss_c + config['gamma']*loss_o
+        total_loss = (1-gamma)*loss_c + gamma*loss_o
         total_loss.backward()
         
         # Adjust learning weights
         optimizer.step()
 
-        # print statistics
+        # Print statistics
         running_loss += total_loss.item()
-        epoch_steps += 1
+
         if i % log_every == log_every-1:  # print every 2000 mini-batches
-            print("[%d, %5d] loss: %.3f" % (epoch + 1, i + 1,
-                                            running_loss / epoch_steps))
-            running_loss = 0.0
+            last_loss = running_loss / log_every # return the loss over the last log_every batches
+            running_loss = 0.0 # reset the running_loss
+
+    return last_loss
+
+
 
 
 def train(

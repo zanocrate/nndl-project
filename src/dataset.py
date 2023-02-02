@@ -5,61 +5,81 @@ import pyvista as pv
 import numpy as np
 import torch.nn.functional as F
 
-# BROKEN WITH SLICE INDEXING IDK WHY
-
-# TO DO:
-
-#     - simplify structure based on new metadata file
-#     - implement one hot encoding as output
-
+# broken with slice indexing idk why
 
 class ModelNetDataset(Dataset):
 
-    def __init__(self,metadata_path,N,split='all', file_format='npy'):
+    def __init__(self,
+                metadata_path : str,
+                N : int = 30,
+                split = None, 
+                file_format : str = 'npy' # tells the object which file format he will provide
+                ):
 
         # load csv file
-        self.metadata = pd.read_csv(metadata_path,index_col=0)
+        self.metadata = pd.read_parquet(metadata_path)
 
         # metadata should have the following columns
-        expected_fields = ['label', 'orientation_class', 'label_id', 'path', 'label_int','orientation_class_id']
+        expected_fields = [
+                            'path',
+                           'split',
+                           'label',
+                           'label_id',
+                           'orientation_class',
+                           'orientation_class_id',
+                           'rot_x',
+                           'rot_y',
+                           'rot_z'
+                            ]
+
         for expected_field in expected_fields: assert(expected_field in self.metadata.columns)
 
-        # subset entries
-        self.metadata=self.metadata.set_index(['file_format','split'])
-
-        # get the number of labels
-        self.n_orientation_classes = self.metadata['orientation_class_id'].unique().size
-        self.n_classes = self.metadata['label_int'].unique().size
-
-        if file_format not in self.metadata.index.levels[0]: raise ValueError('File format not in metadata.')
+        ############## subset on file format
+        
         self.file_format = file_format
+        
+        assert (file_format == 'npy') or (file_format == 'ply')
+        self.metadata = self.metadata[self.metadata.path.str.contains(file_format)]
 
-        if split not in ['train','test','all']: raise ValueError('Split must be "train","test" or "all"')
-        if split == 'all' : self.split = ['train','test']
-        else: self.split = split
+        ############## subset on split
+        if split is None: split = 'test|train' # use regex or
+        else: assert (split == 'test') or (split == 'train')
+
+        self.metadata=self.metadata[self.metadata.split.str.contains(split)]
+
+        ############## get the number of labels
+        self.n_orientation_classes = self.metadata.orientation_class_id.unique().size
+        self.n_classes = self.metadata.label_id.unique().size
 
         self.N = N
 
     
     def __len__(self):
-
-        return len(self.metadata.loc[self.file_format].loc[self.split])
+        # metadata was already subset in initialization
+        return len(self.metadata)
 
     def __getitem__(self, idx):
 
-        # sample has orientation_class, path, orientation_class_id, label, label_int
-        sample = self.metadata.loc[self.file_format].loc[self.split].iloc[idx]
+        sample = self.metadata.iloc[idx]
 
-        if sample['orientation_class'] == -1:
+        if self.file_format == 'npy':
+            # we expect a voxel_grid, one_hot_encoded_orientation_class, one_hot_encoded_class output
+            voxel_grid = np.load(sample.path)
+            orientation_class = torch.tensor(sample.orientation_class_id.item())
+            one_hot_encoded_orientation_class = F.one_hot(orientation_class,num_classes=self.n_orientation_classes)
+            label = torch.tensor(sample.label_id.item())
+            one_hot_encoded_label = F.one_hot(label,num_classes=self.n_classes)
+
+            return voxel_grid,one_hot_encoded_orientation_class,one_hot_encoded_label
+
+        elif self.file_format == 'ply':
+            # for now, just return a random voxelized rotation of the object
+            # with the vector rot_xyz and one hot encoded label
             rot_xyz = 360*np.random.rand(3)
-            voxel_grid = load_voxel_grid(sample['path'],self.N,*rot_xyz)
-            return voxel_grid, rot_xyz, sample['label_int']
-        else:
-            voxel_grid = np.load(sample['path'])
-            F.one_hot(sample['orientation_class_id'],num_classes=N_ORIENTATION_CLASSES).float()
-             # ONE HOT THESE
-            sample['label_int']
-            return voxel_grid, sample['orientation_class_id'], sample['label_int']
+            voxel_grid = load_voxel_grid(sample.path,self.N,*rot_xyz)
+            one_hot_encoded_label = F.one_hot(torch.Tensor(sample.label_id.item()),num_classes=self.n_classes)
+
+            return voxel_grid, rot_xyz, one_hot_encoded_label
             
 
 

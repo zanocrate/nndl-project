@@ -1,70 +1,40 @@
-from src.training import * # imports train function
-from src.dataset import *
+from src.training import *
+# # # # # ALSO IMPORTS THE FOLLOWING
+# from torch.utils.data import DataLoader, Dataset
+# from .models.voxnet import VoxNet
+# from functools import partial
+# import numpy as np
+# import os
+# import torch
+# import torch.nn as nn
+# import torch.nn.functional as F
+#
+# and the train_one_epoch function
 
-metadata_path = '/home/ubuntu/nndl-project/data/modelnet10/metadata.csv'
-N=30
-num_workers=2
-n_epochs = 5 # per grid search
-num_samples = 10 # number of runs?
+from src.dataset import ModelNetDataset
 
-training_set = ModelNetDataset(metadata_path,N,'train','npy')
-validation_set = ModelNetDataset(metadata_path,N,'test','npy')
+import torch.optim as optim
 
-# here we define the search spaces
-config = {
-    "gamma": tune.sample_from(lambda _: 2**np.random.randint(2, 9)),
-    "lr": tune.loguniform(1e-4, 1e-1),
-    "batch_size": tune.uniform(0.,1.)
-}
-
-
+from ray import tune
 
 
-scheduler = ASHAScheduler(
-        metric="loss",
-        mode="min",
-        max_t=n_epochs,
-        grace_period=1,
-        reduction_factor=2)
+def trainable(config):
 
-reporter = CLIReporter(
-    # parameter_columns=["l1", "l2", "lr", "batch_size"],
-    metric_columns=["loss", "accuracy", "training_iteration"])
+    metadata_path = '/home/ubuntu/nndl-project/data/modelnet10/metadata.parquet'
+    num_workers = 1
 
 
-result = tune.run(
+    training_set = ModelNetDataset(metadata_path,split='train')
+    validation_set = ModelNetDataset(metadata_path,split='test')
+    
+    # Create data loaders for our datasets; shuffle for training, not for validation
+    training_loader = DataLoader(training_set, batch_size=config['batch_size'], shuffle=True, num_workers=num_workers)
+    validation_loader = DataLoader(validation_set, batch_size=config['batch_size'], shuffle=False, num_workers=num_workers)
 
-    # fill arguments for trainable function
-    partial(
-        train, 
-        training_set=training_set,
-        validation_set=validation_set,
-        num_workers=num_workers,
-        n_epochs=n_epochs,
-        load_model_path=None,
-        log_every=10
-        ),
-    # resources_per_trial={"cpu": 8, "gpu": gpus_per_trial},
-    config=config,
-    num_samples=num_samples,
-    scheduler=scheduler,
-    progress_reporter=reporter,
-    checkpoint_at_end=True)
+    # initialize model
+    model = VoxNet()
 
-best_trial = result.get_best_trial("loss", "min", "last")
-print("Best trial config: {}".format(best_trial.config))
-print("Best trial final validation loss: {}".format(
-    best_trial.last_result["loss"]))
-print("Best trial final validation accuracy: {}".format(
-    best_trial.last_result["accuracy"]))
+    # initialize optimizer
+    optimizer = optim.Adam(model.parameters(),lr = config['lr'])
 
-best_trained_model = VoxNet()
-device = "cpu"
-
-best_trained_model.to(device)
-
-best_checkpoint_dir = best_trial.checkpoint.value
-model_state, optimizer_state = torch.load(os.path.join(
-    best_checkpoint_dir, "checkpoint"))
-best_trained_model.load_state_dict(model_state)
-
+    train_one_epoch()
